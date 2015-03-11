@@ -30,9 +30,8 @@ func (s *server) SessionRequired(f http.HandlerFunc) http.HandlerFunc {
 			session = &http.Cookie{}
 		}
 		if _, ok := s.sessions[session.Value]; !ok {
-			// TODO generate a random state
-			url := s.oauthConfig.AuthCodeURL("state?")
-			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+			// prompt to signin
+			w.Write([]byte(`<a href="/signin">Sign-in</a>`))
 			return
 		}
 		f(w, r)
@@ -102,6 +101,7 @@ func (s *server) root(w http.ResponseWriter, r *http.Request) {
 	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	me := map[string]interface{}{}
@@ -117,6 +117,13 @@ func (s *server) root(w http.ResponseWriter, r *http.Request) {
 	w.Write(pretty)
 }
 
+func (s *server) signin(w http.ResponseWriter, r *http.Request) {
+	// TODO generate a random state
+	url := s.oauthConfig.AuthCodeURL("state?")
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	return
+}
+
 func (s *server) signout(w http.ResponseWriter, r *http.Request) {
 	// Get the oauth token from the sessions
 	// TODO cookie name should come from the volta config
@@ -128,7 +135,8 @@ func (s *server) signout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	delete(s.sessions, session.Value)
-	w.Write([]byte(fmt.Sprintf("signed out of session %s", session.Name)))
+	w.Write([]byte(fmt.Sprintf("<p>signed out of session %s</p>", session.Name)))
+	w.Write([]byte(`<p><a href="/">Home</a></p>`))
 }
 
 // NewServer creates a new server by parsing an oauth2 config and initializing
@@ -169,6 +177,7 @@ func main() {
 
 	// Create the test server
 	http.HandleFunc("/callback", s.callback)
+	http.HandleFunc("/signin", s.signin)
 	http.HandleFunc("/signout", s.signout)
 	http.HandleFunc("/", s.SessionRequired(s.root))
 	log.Println("Starting server on :8008")
