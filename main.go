@@ -14,32 +14,37 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func ParseConfig() *oauth2.Config {
-	c := &oauth2.Config{
-		ClientID:     os.Getenv("MEMBERS_CLIENT_ID"),
-		ClientSecret: os.Getenv("MEMBERS_CLIENT_SECRET"),
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  os.Getenv("MEMBERS_AUTH_URL"),
-			TokenURL: os.Getenv("MEMBERS_TOKEN_URL"),
-		},
-		RedirectURL: os.Getenv("MEMBERS_REDIRECT_URL"),
-		Scopes:      []string{}, // TODO pull from environment
-	}
-
-	if c.ClientID == "" || c.ClientSecret == "" || c.RedirectURL == "" {
-		log.Panic("Invalid oauth2 config", c)
-	}
-	return c
-}
-
+// server holds the oauth config and session map
 type server struct {
+	config      config.Config
 	oauthConfig *oauth2.Config
 	sessions    map[string]*oauth2.Token // session key : oauth token
 }
 
+// SessionRequired wraps the root handler. It checks that the client has a
+// valid session on the test application.
+func (s *server) SessionRequired(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, err := r.Cookie(config.DefaultCookie.Name)
+		if err != nil {
+			session = &http.Cookie{}
+		}
+		if _, ok := s.sessions[session.Value]; !ok {
+			// TODO generate a random state
+			url := s.oauthConfig.AuthCodeURL("state?")
+			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+			return
+		}
+		f(w, r)
+	}
+}
+
+// callback is hit when the user has successfully authenticated on the
+// oauth2 provider
 func (s *server) callback(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
+	// TODO state should be persisted for the session
 	// TODO validate state in a crypto secure manner
 
 	// Set an auth token
@@ -57,6 +62,8 @@ func (s *server) callback(w http.ResponseWriter, r *http.Request) {
 		Key:     auth.RandomKey(),
 		Expires: time.Now().AddDate(4, 0, 0),
 	}
+
+	// TODO cookie name should come from the volta config
 	auth.SetCookie(w, config.DefaultCookie, session)
 
 	// Create a new session key and save it to match the token
@@ -66,27 +73,21 @@ func (s *server) callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
-func (s *server) SessionRequired(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := r.Cookie(config.DefaultCookie.Name)
-		if err != nil {
-			session = &http.Cookie{}
-		}
-		if _, ok := s.sessions[session.Value]; !ok {
-			// TODO generate a random state
-			url := s.oauthConfig.AuthCodeURL("state?")
-			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-			return
-		}
-		f(w, r)
-	}
-}
-
+// root handler will proxy a call the v2 me endpoint
 func (s *server) root(w http.ResponseWriter, r *http.Request) {
 	// Get the oauth token from the sessions
-	session, _ := r.Cookie(config.DefaultCookie.Name)
+	// TODO cookie name should come from the volta config
+	cookieName := config.DefaultCookie.Name
+	session, err := r.Cookie(cookieName)
+	if err != nil {
+		http.Error(w, "Failed to find session cookie "+cookieName, 401)
+		return
+	}
+
+	// Exchange the session value for an oauth2 token
 	token := s.sessions[session.Value]
 
+	// Create a new request to a protect resource
 	req, err := http.NewRequest("GET", "http://localhost:3000/api/v2/me", nil)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -116,6 +117,22 @@ func (s *server) root(w http.ResponseWriter, r *http.Request) {
 	w.Write(pretty)
 }
 
+func (s *server) signout(w http.ResponseWriter, r *http.Request) {
+	// Get the oauth token from the sessions
+	// TODO cookie name should come from the volta config
+	cookieName := config.DefaultCookie.Name
+	session, err := r.Cookie(cookieName)
+	if err != nil || session == nil {
+		w.Write([]byte("no session exists"))
+		return
+	}
+
+	delete(s.sessions, session.Value)
+	w.Write([]byte(fmt.Sprintf("signed out of session %s", session.Name)))
+}
+
+// NewServer creates a new server by parsing an oauth2 config and initializing
+// a sessions map
 func NewServer() *server {
 	return &server{
 		oauthConfig: ParseConfig(),
@@ -123,17 +140,36 @@ func NewServer() *server {
 	}
 }
 
+// ParseConfig builds an oauth2 config from environmental variables
+func ParseConfig() *oauth2.Config {
+	c := &oauth2.Config{
+		ClientID:     os.Getenv("MEMBERS_CLIENT_ID"),
+		ClientSecret: os.Getenv("MEMBERS_CLIENT_SECRET"),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  os.Getenv("MEMBERS_AUTH_URL"),
+			TokenURL: os.Getenv("MEMBERS_TOKEN_URL"),
+		},
+		RedirectURL: os.Getenv("MEMBERS_REDIRECT_URL"),
+		Scopes:      []string{}, // TODO pull from environment
+	}
+
+	if c.ClientID == "" || c.ClientSecret == "" || c.RedirectURL == "" {
+		log.Panic("Invalid oauth2 config", c)
+	}
+	return c
+}
+
 func main() {
 	// Bootstrap the environment
 	envy.Bootstrap()
 
-	// TODO parse a volta config
-
 	// Create a new server
+	// TODO Parse a volta config
 	s := NewServer()
 
 	// Create the test server
 	http.HandleFunc("/callback", s.callback)
+	http.HandleFunc("/signout", s.signout)
 	http.HandleFunc("/", s.SessionRequired(s.root))
 	log.Println("Starting server on :8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))
