@@ -1,0 +1,43 @@
+{
+	"ImportPath": "github.com/aodin/accounts-test",
+	"GoVersion": "go1.4",
+	"Deps": [
+		{
+			"ImportPath": "github.com/aodin/aspect",
+			"Comment": "v0.2.1",
+			"Rev": "77e62b67349a185c7e1919f978f6b6884614a77a"
+		},
+		{
+			"ImportPath": "github.com/aodin/volta/auth",
+			"Rev": "07e00352d6db7f30d1fd8a561c9b150e6dd96450"
+		},
+		{
+			"ImportPath": "github.com/aodin/volta/config",
+			"Rev": "07e00352d6db7f30d1fd8a561c9b150e6dd96450"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/envy/lib",
+			"Rev": "4b78388c8ce4fa412440ca4eaa654e2fdd752e49"
+		},
+		{
+			"ImportPath": "github.com/lib/pq",
+			"Rev": "dc911180b321e9b7e08aa94f20939ef0109b9b24"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Rev": "ae37dedcaae6fce497569786a8694aa3daa97abf"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "6dc0abcce25682504770fa9a7a6705bbfdebfa48"
+		},
+		{
+			"ImportPath": "golang.org/x/oauth2",
+			"Rev": "10e6bf9f9dda5e0811d42c421aa6274254d70b25"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v2",
+			"Rev": "d466437aa4adc35830964cffc5b5f262c63ddcb4"
+		}
+	]
+}

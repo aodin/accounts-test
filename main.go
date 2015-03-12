@@ -86,8 +86,11 @@ func (s *server) root(w http.ResponseWriter, r *http.Request) {
 	// Exchange the session value for an oauth2 token
 	token := s.sessions[session.Value]
 
+	// Create the proxy URI
+	uri := os.Getenv("OAUTH_URL") + "/api/v2/me"
+
 	// Create a new request to a protect resource
-	req, err := http.NewRequest("GET", "http://localhost:3000/api/v2/me", nil)
+	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -151,13 +154,13 @@ func NewServer() *server {
 // ParseConfig builds an oauth2 config from environmental variables
 func ParseConfig() *oauth2.Config {
 	c := &oauth2.Config{
-		ClientID:     os.Getenv("MEMBERS_CLIENT_ID"),
-		ClientSecret: os.Getenv("MEMBERS_CLIENT_SECRET"),
+		ClientID:     os.Getenv("OAUTH_ID"),
+		ClientSecret: os.Getenv("OAUTH_SECRET"),
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  os.Getenv("MEMBERS_AUTH_URL"),
-			TokenURL: os.Getenv("MEMBERS_TOKEN_URL"),
+			AuthURL:  os.Getenv("OAUTH_URL") + "/accounts/authorize",
+			TokenURL: os.Getenv("OAUTH_URL") + "/accounts/token",
 		},
-		RedirectURL: os.Getenv("MEMBERS_REDIRECT_URL"),
+		RedirectURL: os.Getenv("CALLBACK_URL"),
 		Scopes:      []string{}, // TODO pull from environment
 	}
 
@@ -175,11 +178,13 @@ func main() {
 	// TODO Parse a volta config
 	s := NewServer()
 
+	port := os.Getenv("PORT")
+
 	// Create the test server
 	http.HandleFunc("/callback", s.callback)
 	http.HandleFunc("/signin", s.signin)
 	http.HandleFunc("/signout", s.signout)
 	http.HandleFunc("/", s.SessionRequired(s.root))
-	log.Println("Starting server on :8008")
-	log.Fatal(http.ListenAndServe(":8008", nil))
+	log.Printf("Starting server on :%s\n", port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }
