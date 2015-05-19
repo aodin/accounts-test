@@ -54,7 +54,7 @@ func (s *server) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO pull from the /me endpoint to populate session information
-	log.Println("creating session token")
+	log.Println("creating session token:", token)
 
 	// Set the cookie
 	session := auth.Session{
@@ -161,7 +161,7 @@ func ParseConfig() *oauth2.Config {
 			TokenURL: os.Getenv("OAUTH_URL") + "/accounts/token",
 		},
 		RedirectURL: os.Getenv("CALLBACK_URL"),
-		Scopes:      []string{}, // TODO pull from environment
+		Scopes:      []string{}, // TODO pull from environment?
 	}
 
 	if c.ClientID == "" || c.ClientSecret == "" || c.RedirectURL == "" {
